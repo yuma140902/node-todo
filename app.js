@@ -1,26 +1,26 @@
 'use strict'
 const express = require('express')
-
-let todos = [
-  { id: 1, title: 'ネーム', completed: false },
-  { id: 2, title: '下書き', completed: true }
-]
+const { v4: uuidv4 } = require('uuid')
+// npm_lifecycle_event は、npm run hoge の hoge の部分
+const dataStorage = require(`./${process.env.npm_lifecycle_event}`)
 
 const app = express();
+
 app.use(express.json());
 
+// ToDo一覧の取得
 app.get('/api/todos', (req, res) => {
   if (!req.query.completed) {
-    return res.json(todos);
+    // すべての一覧
+    return dataStorage.fetchAll().then(todos => res.json(todos), next);
   }
 
   // クエリパラメータcompletedが指定された場合はフィルタリング
   const completed = (req.query.completed === 'true');
-  res.json(todos.filter(todo => todo.completed === completed));
+  dataStorage.fetchByCompleted(completed).then(todos => res.json(todos), next);
 });
 
-let id = 2;
-
+// ToDoの新規登録
 app.post('/api/todos', (req, res, next) => {
   const { title } = req.body;
   if (typeof title !== 'string' || !title) {
@@ -31,56 +31,43 @@ app.post('/api/todos', (req, res, next) => {
   }
 
   /* todoリストへ追加 */
-  const todo = { id: ++id, title, completed: false };
-  todos.push(todo);
-
-  res.status(201).json(todo);
+  const todo = { id: uuidv4(), title, completed: false };
+  dataStorage.create(todo).then(() => res.status(201).json(todo), next);
 });
 
-// req.todoをセットするミドルウェア
-app.use('/api/todos/:id(\\d+)', (req, res, next) => {
-  req.todo = todos.find(todo => todo.id == req.params.id);
-  if (req.todo) {
-    return next();
-  }
-  const err = new Error('No task found');
-  err.statusCode = 405;
-  next(err);
-});
+function completedHandler(completed) {
+  return (req, res, next) =>
+    dataStorage.update(req.params.id, { completed: completed })
+      .then(todo => {
+        if (todo) {
+          return res.json(todo);
+        } const err = new Error('ToDo is not found');
+        err.statusCode = 404;
+        next(err)
+      }, next)
+}
 
+// ToDoのCompletedの設定、解除
+app.route('/api/todos/:id/completed')
+  .put(completedHandler(true))
+  .delete(completedHandler(false));
+
+// ToDoの削除
+app.delete('/api/todos/:id', (req, res, next) =>
+  dataStorage.remove(req.params.id).then(id => {
+    if (id !== null) {
+      return res.status(204).end();
+    }
+    const err = new Error('ToDo not found');
+    err.statusCode = 404;
+    next(err)
+  }, next)
+);
+
+// エラーハンドリングミドルウェア
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(err.statusCode || 500).json({ error: err.message });
 });
 
-app.route('/api/todos/:id(\\d+)/completed')
-  .put((req, res) => {
-    req.todo.completed = true;
-    res.json(req.todo);
-  })
-  .delete((req, res) => {
-    req.todo.completed = false;
-    res.json(req.todo);
-  });
-
-app.route('/api/todos/:id(\\d+)')
-  .get((req, res) => res.json(req.todo))
-  .delete((req, res) => {
-    todos = todos.filter(todo => todo !== req.todo);
-    res.statusCode(204).end();
-  });
-
 app.listen(3000);
-
-// Next.jsによるルーティング
-const next = require('next')
-const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev });
-
-nextApp.prepare().then(
-  () => app.get('*', nextApp.getRequestHandler()),
-  err => {
-    console.error(err);
-    process.exit(1);
-  }
-);
