@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "file-system": "node app",
+    "sqlite": "node app",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "yuma140902",
@@ -12,6 +13,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "isomorphic-fetch": "^3.0.0",
+    "sqlite3": "^5.0.2",
     "uuid": "^8.3.2"
   }
 }
