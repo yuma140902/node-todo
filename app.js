@@ -9,7 +9,7 @@ const app = express();
 app.use(express.json());
 
 // ToDo一覧の取得
-app.get('/api/todos', (req, res) => {
+app.get('/api/todos', (req, res, next) => {
   if (!req.query.completed) {
     // すべての一覧
     return dataStorage.fetchAll().then(todos => res.json(todos), next);
